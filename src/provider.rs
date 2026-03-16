@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use toml;
 
 use std::fmt;
@@ -7,18 +7,30 @@ use std::{fs::read_to_string, io};
 use crate::PATH;
 
 #[derive(Deserialize)]
-enum ProviderType {
+pub enum ProviderType {
     OpenAI,
     Anthropic,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Reasoning {
+    Low,
+    Medium,
+    High,
+    Xhigh,
+}
+
+
 #[derive(Deserialize)]
 pub struct Provider {
-    base_url: String,
+    pub base_url: String,
     #[serde(rename = "type")]
-    provider_type: ProviderType,
-    api_key: String,
-    api_rate: i32,
+    pub provider_type: ProviderType,
+    pub api_key: String,
+    pub model: String,
+    pub reasoning: Reasoning,
+    pub api_rate: i32,
 }
 
 #[derive(Debug)]

@@ -7,4 +7,5 @@ edition = "2024"
 clap = { version = "4.5.49", features = ["derive"] }
 reqwest = "0.13.2"
 serde = { version = "1.0.228", features = ["derive"] }
+tokio = "1.50.0"
 toml = "1.0.6"

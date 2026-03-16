@@ -1,4 +1,6 @@
 base_url = "BASE_URL_HERE" # Do not end with "/v1"
 type = "OpenAI"  # or "Anthropic"
 api_key = "YOUR_KEY_HERE"
+model = "MODEL_HERE"
+reasoning = "low" # medium high or xhigh
 api_rate = 6 # num/min
