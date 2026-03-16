@@ -1,0 +1,5 @@
+[provider]
+base_url = "BASE_URL_HERE" # Do not end with "/v1"
+type = "openai" / "anthropic"
+api_key = "YOUR_KEY_HERE"
+api_rate = 6
