@@ -6,13 +6,13 @@ use std::{fs::read_to_string, io};
 
 use crate::PATH;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub enum ProviderType {
     OpenAI,
     Anthropic,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Reasoning {
     Low,
@@ -22,7 +22,7 @@ pub enum Reasoning {
 }
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Provider {
     pub base_url: String,
     #[serde(rename = "type")]
