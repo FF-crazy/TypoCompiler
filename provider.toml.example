@@ -1,5 +1,4 @@
-[provider]
 base_url = "BASE_URL_HERE" # Do not end with "/v1"
-type = "openai" / "anthropic"
+type = "OpenAI"  # or "Anthropic"
 api_key = "YOUR_KEY_HERE"
-api_rate = 6
+api_rate = 6 # num/min
