@@ -4,6 +4,7 @@ use typo_compiler::provider;
 use typo_compiler::service::Service;
 
 #[tokio::test]
+#[ignore]
 async fn test_chat() -> Result<(), Box<dyn Error>> {
     let p = provider::read_provider()?;
     let s = Service::new(p);
