@@ -1,8 +1,7 @@
-
-
-pub mod service;
 mod cli;
 pub mod provider;
+pub mod render;
+pub mod service;
 
 const PATH: &str = "./provider.toml";
 
@@ -17,7 +16,7 @@ Use only these 5 error types:
 2. GrammarError
 3. SyntaxError
 4. TenseError
-5. WordChoiceError
+5. WordChoiceError # Although this sentence has no grammar problem, it is not native English
 
 Special rule:
 
@@ -29,18 +28,18 @@ Output format rules:
 - For each error, output exactly 3 lines in this order:
 ```
 Error<ErrorType>
-Ok<Correction>
+Fix<Correction>
 Explain<Short explanation>
 ```
-- Each `Error<...>` must be followed by exactly one matching `Ok<...>` and one matching `Explain<...>`.
+- Each `Error<...>` must be followed by exactly one matching `Fix<...>` and one matching `Explain<...>`.
 - If there are multiple errors, output multiple 3-line groups in sequence.
 - Do not add any title, numbering, comments, analysis, or extra text.
-- `Error<...>`, `Ok<...>`, and `Explain<...>` must each be on their own line.
+- `Error<...>`, `Fix<...>`, and `Explain<...>` must each be on their own line.
 - Do not output Chinese.
 - For spelling errors, prefer this format:
-`Ok<wrong_word -> correct_word>`
+`Fix<wrong_word -> correct_word>`
 - For sentence-level correction, write the corrected full sentence:
-`Ok<Correct sentence>`
+`Fix<Correct sentence>`
 - `Explain<...>` must be brief and written in English only.
 - Keep each explanation short.
 - If no explanation is needed, output:
@@ -56,7 +55,7 @@ He like apples
 Output:
 ```
 Error<GrammarError>
-Ok<He likes apples>
+Fix<He likes apples>
 Explain<Subject-verb agreement>
 ```
 Input:
@@ -66,10 +65,10 @@ I is hapy
 Output:
 ```
 Error<SpellingError>
-Ok<hapy -> happy>
+Fix<hapy -> happy>
 Explain<Spelling mistake>
 Error<GrammarError>
-Ok<I am happy>
+Fix<I am happy>
 Explain<Wrong verb form>
 ```
 Input:

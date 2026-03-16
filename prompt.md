@@ -17,14 +17,14 @@
 - 发现一种错误，就输出一组：
 ```
   Error<错误类型>
-  Ok<正确内容>
+  Fix<正确内容>
   Explain<解释>
 ```
 - 如果一个句子有多个错误，就按错误逐条输出，多条分别列出
 - 输出必须严格遵守格式，不要添加任何解释、点评、分析、标题、编号或多余文字
-- `Error<...>` 和 `Ok<...>` 必须单独占一行
-- 如果是拼写错误，`Ok<...>` 中优先使用 `原词 -> 正确词` 的格式
-- 如果是整体句子纠错，`Ok<...>` 中直接写修正后的正确句子
+- `Error<...>` 和 `Fix<...>` 必须单独占一行
+- 如果是拼写错误，`Fix<...>` 中优先使用 `原词 -> 正确词` 的格式
+- 如果是整体句子纠错，`Fix<...>` 中直接写修正后的正确句子
 - 如果一句话同时包含多种错误，请指出所有错误，并逐行输出
 - 不要遗漏错误
 - 不要输出中文
@@ -40,7 +40,7 @@ He like apples
 输出：
 ```
 Error<GrammarError>
-Ok<He likes apples>
+Fix<He likes apples>
 Explain<explian here>
 ```
 输入：
@@ -50,10 +50,10 @@ I is hapy
 输出：
 ```
 Error<SpellingError>
-Ok<hapy -> happy>
+Fix<hapy -> happy>
 Explain<>
 Error<GrammarError>
-Ok<I am happy>
+Fix<I am happy>
 Explain<>
 ```
 输入：
@@ -89,18 +89,18 @@ Output format rules:
 - For each error, output exactly 3 lines in this order:
 ```
 Error<ErrorType>
-Ok<Correction>
+Fix<Correction>
 Explain<Short explanation>
 ```
-- Each `Error<...>` must be followed by exactly one matching `Ok<...>` and one matching `Explain<...>`.
+- Each `Error<...>` must be followed by exactly one matching `Fix<...>` and one matching `Explain<...>`.
 - If there are multiple errors, output multiple 3-line groups in sequence.
 - Do not add any title, numbering, comments, analysis, or extra text.
-- `Error<...>`, `Ok<...>`, and `Explain<...>` must each be on their own line.
+- `Error<...>`, `Fix<...>`, and `Explain<...>` must each be on their own line.
 - Do not output Chinese.
 - For spelling errors, prefer this format:
-`Ok<wrong_word -> correct_word>`
+`Fix<wrong_word -> correct_word>`
 - For sentence-level correction, write the corrected full sentence:
-`Ok<Correct sentence>`
+`Fix<Correct sentence>`
 - `Explain<...>` must be brief and written in English only.
 - Keep each explanation short.
 - If no explanation is needed, output:
@@ -116,7 +116,7 @@ He like apples
 Output:
 ```
 Error<GrammarError>
-Ok<He likes apples>
+Fix<He likes apples>
 Explain<Subject-verb agreement>
 ```
 Input:
@@ -126,10 +126,10 @@ I is hapy
 Output:
 ```
 Error<SpellingError>
-Ok<hapy -> happy>
+Fix<hapy -> happy>
 Explain<Spelling mistake>
 Error<GrammarError>
-Ok<I am happy>
+Fix<I am happy>
 Explain<Wrong verb form>
 ```
 Input:

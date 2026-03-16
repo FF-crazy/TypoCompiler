@@ -135,7 +135,7 @@ impl Service {
         Ok(headers)
     }
 
-    fn build_openai_request(&self, user_input: String) -> OpenAIRequest {
+    fn build_openai_request(&self, user_input: &str) -> OpenAIRequest {
         OpenAIRequest {
             model: self.provider.model.clone(),
             reasoning: OpenAIReasonEffort {
@@ -144,19 +144,19 @@ impl Service {
             instructions: self.get_instructions(),
             input: vec![OpenAIMessage {
                 role: String::from("user"),
-                content: user_input,
+                content: user_input.to_string(),
             }],
         }
     }
 
-    fn build_anthropic_request(&self, user_input: String) -> AnthropicRequest {
+    fn build_anthropic_request(&self, user_input: &str) -> AnthropicRequest {
         AnthropicRequest {
             model: self.provider.model.clone(),
             system: self.get_instructions(),
             max_tokens: 65535,
             messages: vec![AnthropicMessage {
                 role: String::from("user"),
-                content: user_input,
+                content: user_input.to_string(),
             }],
         }
     }
@@ -167,7 +167,7 @@ impl Service {
 
     async fn post_openai_request(
         &self,
-        user_input: String,
+        user_input: &str,
     ) -> Result<OpenAIResponse, Box<dyn Error>> {
         let request_body: OpenAIRequest = self.build_openai_request(user_input);
         let headers = self.build_header()?;
@@ -194,7 +194,7 @@ impl Service {
 
     async fn post_anthropic_request(
         &self,
-        user_input: String,
+        user_input: &str,
     ) -> Result<AnthropicResponse, Box<dyn Error>> {
         let request_body = self.build_anthropic_request(user_input);
         let headers = self.build_header()?;
@@ -244,7 +244,7 @@ impl Service {
         texts.join("\n")
     }
 
-    pub async fn post(&self, user_input: String) -> Result<String, Box<dyn Error>> {
+    pub async fn post(&self, user_input: &str) -> Result<String, Box<dyn Error>> {
         match &self.provider.provider_type {
             ProviderType::OpenAI => {
                 let resp = self.post_openai_request(user_input).await?;

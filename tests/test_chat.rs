@@ -7,7 +7,7 @@ use typo_compiler::service::Service;
 async fn test_chat() -> Result<(), Box<dyn Error>> {
     let p = provider::read_provider()?;
     let s = Service::new(p);
-    let ret = s.post("When do you have time to meet with me".to_string()).await?;
+    let ret = s.post("I hate apple vrey much").await?;
 
     assert!(!ret.trim().is_empty(), "chat response should not be empty");
     println!("response:\n{ret}");
