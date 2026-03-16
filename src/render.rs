@@ -85,12 +85,13 @@ impl Render {
     }
 
     pub fn render_compiler_output(&self, output: &CompilerOutput) -> Option<String> {
-        if output
+        let all_right = output
             .mistakes
             .iter()
-            .any(|item| item.status == SentenceStatus::AllRight)
-        {
-            return Some(self.render_all_right());
+            .any(|item| item.status == SentenceStatus::AllRight);
+
+        if all_right {
+            return Some(self.render_success_summary());
         }
 
         let blocks: Vec<String> = output
@@ -109,7 +110,10 @@ impl Render {
         if blocks.is_empty() {
             None
         } else {
-            Some(blocks.join("\n\n"))
+            let mut rendered = blocks.join("\n\n");
+            rendered.push_str("\n\n");
+            rendered.push_str(&self.render_error_summary(blocks.len()));
+            Some(rendered)
         }
     }
 
@@ -118,6 +122,23 @@ impl Render {
             "{}Congratulations, all right!{}",
             Self::BRIGHT_GREEN,
             Self::RESET
+        )
+    }
+
+    fn render_success_summary(&self) -> String {
+        format!(
+            "{}Finished:{} 0 errors found",
+            Self::BRIGHT_GREEN,
+            Self::RESET
+        )
+    }
+
+    fn render_error_summary(&self, error_count: usize) -> String {
+        format!(
+            "{}error:{} aborting due to {} previous errors",
+            Self::BRIGHT_RED,
+            Self::RESET,
+            error_count
         )
     }
 
@@ -132,7 +153,7 @@ impl Render {
         let hit = output.sentence.find(wrong)?;
         let end = hit + wrong.len();
 
-        let highlighted_sentence = format!(
+        let sentence_line = format!(
             "{}{}{}{}{}",
             &output.sentence[..hit],
             Self::BRIGHT_RED,
@@ -141,19 +162,27 @@ impl Render {
             &output.sentence[end..]
         );
 
-        let caret_line = format!("{}{}^^^{}", " ".repeat(hit), Self::BRIGHT_RED, Self::RESET);
+        let detail = spelling_item
+            .explain
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("spelling issue detected");
 
-        let hint_line = format!(
-            "Do you mean \"{}{}{}\"?  Not \"{}{}{}\"!",
-            Self::BRIGHT_GREEN,
-            correct,
-            Self::RESET,
-            Self::BRIGHT_RED,
-            wrong,
-            Self::RESET
-        );
+        let pointer = format!("{}^^^", " ".repeat(hit));
+        let help = format!("Do you mean \"{correct}\"?");
+        let note = "this looks like a typo";
 
-        Some(format!("{highlighted_sentence}\n{caret_line}\n{hint_line}"))
+        Some(self.render_diagnostic_block(
+            spelling_item.status.as_str(),
+            1,
+            hit + 1,
+            &sentence_line,
+            &pointer,
+            detail,
+            &help,
+            note,
+        ))
     }
 
     fn render_word_choice_error(
@@ -166,32 +195,31 @@ impl Render {
             return None;
         }
 
-        let original_line = format!(
-            "{}: {}{}{}",
+        let detail = word_choice_item
+            .explain
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("word choice is not idiomatic");
+
+        let sentence_line = format!("{}{}{}", Self::BRIGHT_YELLOW, output.sentence, Self::RESET);
+        let pointer = format!("{}~~~{}", Self::BRIGHT_YELLOW, Self::RESET);
+        let help = correct_sentence.to_string();
+        let note = word_choice_item
+            .explain
+            .as_deref()
+            .unwrap_or("Use more natural wording");
+
+        Some(self.render_diagnostic_block(
             word_choice_item.status.as_str(),
-            Self::BRIGHT_YELLOW,
-            output.sentence,
-            Self::RESET
-        );
-        let correct_line = format!(
-            "Correct : {}{}{}",
-            Self::BRIGHT_GREEN,
-            correct_sentence,
-            Self::RESET
-        );
-
-        let explain_line = match word_choice_item.explain.as_deref().map(str::trim) {
-            Some(text) if !text.is_empty() => {
-                format!("Explain : {}{}{}", Self::BRIGHT_CYAN, text, Self::RESET)
-            }
-            _ => format!(
-                "Explain : {}(no explanation){}",
-                Self::BRIGHT_CYAN,
-                Self::RESET
-            ),
-        };
-
-        Some(format!("{original_line}\n{correct_line}\n{explain_line}"))
+            1,
+            1,
+            &sentence_line,
+            &pointer,
+            detail,
+            &help,
+            note,
+        ))
     }
 
     fn render_sentence_level_error(
@@ -204,31 +232,70 @@ impl Render {
             return None;
         }
 
-        let original_line = format!(
-            "{}: {}{}{}",
-            item.status.as_str(),
-            Self::BRIGHT_RED,
-            output.sentence,
-            Self::RESET
-        );
-        let correct_line = format!(
-            "Correct : {}{}{}",
-            Self::BRIGHT_GREEN,
-            correct_sentence,
-            Self::RESET
-        );
-        let explain_line = match item.explain.as_deref().map(str::trim) {
-            Some(text) if !text.is_empty() => {
-                format!("Explain : {}{}{}", Self::BRIGHT_CYAN, text, Self::RESET)
-            }
-            _ => format!(
-                "Explain : {}(no explanation){}",
-                Self::BRIGHT_CYAN,
-                Self::RESET
-            ),
-        };
+        let detail = item
+            .explain
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("sentence structure can be improved");
 
-        Some(format!("{original_line}\n{correct_line}\n{explain_line}"))
+        let sentence_line = format!("{}{}{}", Self::BRIGHT_RED, output.sentence, Self::RESET);
+        let pointer = format!("{}~~~{}", Self::BRIGHT_RED, Self::RESET);
+        let help = correct_sentence.to_string();
+        let note = item.explain.as_deref().unwrap_or("Review this sentence.");
+
+        Some(self.render_diagnostic_block(
+            item.status.as_str(),
+            1,
+            1,
+            &sentence_line,
+            &pointer,
+            detail,
+            &help,
+            note,
+        ))
+    }
+
+    fn render_diagnostic_block(
+        &self,
+        error_type: &str,
+        line: usize,
+        column: usize,
+        sentence_line: &str,
+        pointer: &str,
+        detail: &str,
+        help: &str,
+        note: &str,
+    ) -> String {
+        let header = format!(
+            "{}error[{}]:{} {}",
+            Self::BRIGHT_RED,
+            error_type,
+            Self::RESET,
+            detail
+        );
+        let source = format!(" --> <input>:{line}:{column}");
+        let pipe = "  |";
+        let code = format!("{line} | {sentence_line}");
+        let mark = format!("  | {}{}{}", Self::BRIGHT_RED, pointer, Self::RESET);
+        let help_line = format!(
+            "{}help:{} {}{}{}",
+            Self::BRIGHT_GREEN,
+            Self::RESET,
+            Self::BRIGHT_GREEN,
+            help,
+            Self::RESET
+        );
+        let note_line = format!(
+            "{}note:{} {}{}{}",
+            Self::BRIGHT_CYAN,
+            Self::RESET,
+            Self::BRIGHT_CYAN,
+            note,
+            Self::RESET
+        );
+
+        format!("{header}\n{source}\n{pipe}\n{code}\n{mark}\n{help_line}\n{note_line}")
     }
 }
 
@@ -417,11 +484,15 @@ Explain<Use plural noun in this context>"#;
             .render_compiler_output(&output)
             .expect("must render spelling error");
 
-        assert!(rendered.contains("I hate apple \x1b[91mvrey\x1b[0m much"));
-        assert!(rendered.contains("\x1b[91m^^^\x1b[0m"));
-        assert!(
-            rendered.contains("Do you mean \"\x1b[92mvery\x1b[0m\"?  Not \"\x1b[91mvrey\x1b[0m\"!")
-        );
+        assert!(rendered.contains("error[SpellingError]:"));
+        assert!(rendered.contains(" --> <input>:1:14"));
+        assert!(rendered.contains("1 | I hate apple \x1b[91mvrey\x1b[0m much"));
+        assert!(rendered.contains("^^^"));
+        assert!(rendered.contains("help:"));
+        assert!(rendered.contains("Do you mean \"very\"?"));
+        assert!(rendered.contains("note:"));
+        assert!(rendered.contains("this looks like a typo"));
+        assert!(rendered.contains("aborting due to 1 previous errors"));
     }
 
     #[test]
@@ -447,16 +518,12 @@ Explain<Use plural noun in this context>"#;
             .render_compiler_output(&output)
             .expect("must render spelling errors");
 
-        assert!(rendered.contains("\x1b[91mvrey\x1b[0m good and hapy"));
-        assert!(rendered.contains("vrey good and \x1b[91mhapy\x1b[0m"));
-        assert!(
-            rendered.contains("Do you mean \"\x1b[92mvery\x1b[0m\"?  Not \"\x1b[91mvrey\x1b[0m\"!")
-        );
-        assert!(
-            rendered
-                .contains("Do you mean \"\x1b[92mhappy\x1b[0m\"?  Not \"\x1b[91mhapy\x1b[0m\"!")
-        );
-        assert!(rendered.contains("\n\n"));
+        assert!(rendered.contains("error[SpellingError]:"));
+        assert!(rendered.contains("1 | \x1b[91mvrey\x1b[0m good and hapy"));
+        assert!(rendered.contains("1 | vrey good and \x1b[91mhapy\x1b[0m"));
+        assert!(rendered.contains("Do you mean \"very\"?"));
+        assert!(rendered.contains("Do you mean \"happy\"?"));
+        assert!(rendered.contains("aborting due to 2 previous errors"));
     }
 
     #[test]
@@ -475,9 +542,13 @@ Explain<Use plural noun in this context>"#;
             .render_compiler_output(&output)
             .expect("must render word choice error");
 
-        assert!(rendered.contains("WordChoiceError: \x1b[93mI hate apple very much\x1b[0m"));
-        assert!(rendered.contains("Correct : \x1b[92mI hate apples very much\x1b[0m"));
-        assert!(rendered.contains("Explain : \x1b[96mUse plural noun for fruit in general\x1b[0m"));
+        assert!(rendered.contains("error[WordChoiceError]:"));
+        assert!(rendered.contains("1 | \x1b[93mI hate apple very much\x1b[0m"));
+        assert!(rendered.contains("help:"));
+        assert!(rendered.contains("help:"));
+        assert!(rendered.contains("I hate apples very much"));
+        assert!(rendered.contains("note:"));
+        assert!(rendered.contains("Use plural noun for fruit in general"));
     }
 
     #[test]
@@ -496,8 +567,32 @@ Explain<Use plural noun in this context>"#;
             .render_compiler_output(&output)
             .expect("must render grammar error");
 
-        assert!(rendered.contains("GrammarError: \x1b[91mHe like apples\x1b[0m"));
-        assert!(rendered.contains("Correct : \x1b[92mHe likes apples\x1b[0m"));
-        assert!(rendered.contains("Explain : \x1b[96mSubject-verb agreement\x1b[0m"));
+        assert!(rendered.contains("error[GrammarError]:"));
+        assert!(rendered.contains("1 | \x1b[91mHe like apples\x1b[0m"));
+        assert!(rendered.contains("help:"));
+        assert!(rendered.contains("help:"));
+        assert!(rendered.contains("He likes apples"));
+        assert!(rendered.contains("note:"));
+        assert!(rendered.contains("Subject-verb agreement"));
+    }
+
+    #[test]
+    fn render_all_right_summary_for_compiler_output() {
+        let renderer = Render::new();
+        let output = CompilerOutput::new(
+            "I am happy",
+            vec![OutputItem {
+                status: SentenceStatus::AllRight,
+                fix: None,
+                explain: None,
+            }],
+        );
+
+        let rendered = renderer
+            .render_compiler_output(&output)
+            .expect("must render all-right summary");
+
+        assert!(rendered.contains("Finished:"));
+        assert!(rendered.contains("0 errors found"));
     }
 }
