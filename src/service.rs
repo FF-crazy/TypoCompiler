@@ -7,8 +7,18 @@ use std::io;
 use crate::PROMPT;
 use crate::provider::{Provider, ProviderType, Reasoning};
 
-// TODO: support anthropic thinking mode
 // TODO: support rate control
+
+fn reasoning_to_think_budget(reasoning: &Reasoning, max_tokens: u32) -> u32 {
+    let percentage: u32 = match reasoning {
+        Reasoning::Low => 15,
+        Reasoning::Medium => 25,
+        Reasoning::High => 50,
+        Reasoning::Xhigh => 75,
+    };
+
+    (max_tokens * percentage) / 100
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct AnthropicMessage {
@@ -20,8 +30,17 @@ struct AnthropicMessage {
 struct AnthropicRequest {
     model: String,
     system: String,
-    max_tokens: u16,
+    max_tokens: u32,
+    thinking: AnthropicThinking,
     messages: Vec<AnthropicMessage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AnthropicThinking {
+    #[serde(rename = "type")]
+    mode: String,
+    #[serde(rename = "budget_tokens")]
+    think_budget: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -150,10 +169,16 @@ impl Service {
     }
 
     fn build_anthropic_request(&self, user_input: &str) -> AnthropicRequest {
+        let max_tokens = 65535;
+
         AnthropicRequest {
             model: self.provider.model.clone(),
             system: self.get_instructions(),
-            max_tokens: 65535,
+            max_tokens,
+            thinking: AnthropicThinking {
+                mode: String::from("enabled"),
+                think_budget: reasoning_to_think_budget(&self.provider.reasoning, max_tokens),
+            },
             messages: vec![AnthropicMessage {
                 role: String::from("user"),
                 content: user_input.to_string(),
@@ -255,5 +280,26 @@ impl Service {
                 Ok(self.extract_anthropic(resp))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reasoning_to_think_budget_uses_expected_percentages() {
+        let max_tokens = 1000;
+
+        assert_eq!(reasoning_to_think_budget(&Reasoning::Low, max_tokens), 150);
+        assert_eq!(
+            reasoning_to_think_budget(&Reasoning::Medium, max_tokens),
+            250
+        );
+        assert_eq!(reasoning_to_think_budget(&Reasoning::High, max_tokens), 500);
+        assert_eq!(
+            reasoning_to_think_budget(&Reasoning::Xhigh, max_tokens),
+            750
+        );
     }
 }
