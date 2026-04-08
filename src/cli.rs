@@ -52,7 +52,19 @@ impl Cli {
 
     pub fn resolve_input(&self) -> io::Result<Input> {
         let content = if let Some(path) = &self.file {
-            fs::read_to_string(path)?
+            let bytes = fs::read(path)?;
+            if bytes.iter().take(8192).any(|&b| b == 0) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{path}: file appears to be binary"),
+                ));
+            }
+            String::from_utf8(bytes).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{path}: file is not valid UTF-8 text"),
+                )
+            })?
         } else {
             self.input
                 .clone()
