@@ -1,7 +1,5 @@
 use regex::Regex;
 
-// TODO: support file input
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SentenceStatus {
     AllRight,
@@ -45,13 +43,22 @@ pub struct OutputItem {
 }
 
 pub struct CompilerOutput {
+    pub source: String,
+    pub line: usize,
     pub sentence: String,
     pub mistakes: Vec<OutputItem>,
 }
 
 impl CompilerOutput {
-    pub fn new(sentence: impl Into<String>, mistakes: Vec<OutputItem>) -> Self {
+    pub fn new(
+        source: impl Into<String>,
+        line: usize,
+        sentence: impl Into<String>,
+        mistakes: Vec<OutputItem>,
+    ) -> Self {
         Self {
+            source: source.into(),
+            line,
             sentence: sentence.into(),
             mistakes,
         }
@@ -84,17 +91,19 @@ impl Render {
         }
     }
 
-    pub fn render_compiler_output(&self, output: &CompilerOutput) -> Option<String> {
+    /// Render error blocks for a single sentence. Returns the individual error blocks
+    /// (without a summary line). Returns `None` if all right or no parseable errors.
+    pub fn render_error_blocks(&self, output: &CompilerOutput) -> Vec<String> {
         let all_right = output
             .mistakes
             .iter()
             .any(|item| item.status == SentenceStatus::AllRight);
 
         if all_right {
-            return Some(self.render_success_summary());
+            return Vec::new();
         }
 
-        let blocks: Vec<String> = output
+        output
             .mistakes
             .iter()
             .filter_map(|item| match item.status {
@@ -105,7 +114,21 @@ impl Render {
                 SentenceStatus::WordChoiceError => self.render_word_choice_error(output, item),
                 _ => None,
             })
-            .collect();
+            .collect()
+    }
+
+    /// Legacy method: render all blocks with a summary. Used for single-sentence mode.
+    pub fn render_compiler_output(&self, output: &CompilerOutput) -> Option<String> {
+        let all_right = output
+            .mistakes
+            .iter()
+            .any(|item| item.status == SentenceStatus::AllRight);
+
+        if all_right {
+            return Some(self.render_success_summary());
+        }
+
+        let blocks = self.render_error_blocks(output);
 
         if blocks.is_empty() {
             None
@@ -125,7 +148,7 @@ impl Render {
         )
     }
 
-    fn render_success_summary(&self) -> String {
+    pub fn render_success_summary(&self) -> String {
         format!(
             "{}Finished:{} 0 errors found",
             Self::BRIGHT_GREEN,
@@ -133,7 +156,7 @@ impl Render {
         )
     }
 
-    fn render_error_summary(&self, error_count: usize) -> String {
+    pub fn render_error_summary(&self, error_count: usize) -> String {
         format!(
             "{}error:{} aborting due to {} previous errors",
             Self::BRIGHT_RED,
@@ -175,7 +198,8 @@ impl Render {
 
         Some(self.render_diagnostic_block(
             spelling_item.status.as_str(),
-            1,
+            &output.source,
+            output.line,
             hit + 1,
             &sentence_line,
             &pointer,
@@ -212,7 +236,8 @@ impl Render {
 
         Some(self.render_diagnostic_block(
             word_choice_item.status.as_str(),
-            1,
+            &output.source,
+            output.line,
             1,
             &sentence_line,
             &pointer,
@@ -246,7 +271,8 @@ impl Render {
 
         Some(self.render_diagnostic_block(
             item.status.as_str(),
-            1,
+            &output.source,
+            output.line,
             1,
             &sentence_line,
             &pointer,
@@ -259,6 +285,7 @@ impl Render {
     fn render_diagnostic_block(
         &self,
         error_type: &str,
+        source_name: &str,
         line: usize,
         column: usize,
         sentence_line: &str,
@@ -274,7 +301,7 @@ impl Render {
             Self::RESET,
             detail
         );
-        let source = format!(" --> <input>:{line}:{column}");
+        let source = format!(" --> {source_name}:{line}:{column}");
         let pipe = "  |";
         let code = format!("{line} | {sentence_line}");
         let mark = format!("  | {}{}{}", Self::BRIGHT_RED, pointer, Self::RESET);
@@ -472,6 +499,8 @@ Explain<Use plural noun in this context>"#;
     fn render_spelling_error_compiler_style() {
         let renderer = Render::new();
         let output = CompilerOutput::new(
+            "<input>",
+            1,
             "I hate apple vrey much",
             vec![OutputItem {
                 status: SentenceStatus::SpellingError,
@@ -499,6 +528,8 @@ Explain<Use plural noun in this context>"#;
     fn render_multiple_spelling_errors() {
         let renderer = Render::new();
         let output = CompilerOutput::new(
+            "<input>",
+            1,
             "vrey good and hapy",
             vec![
                 OutputItem {
@@ -530,6 +561,8 @@ Explain<Use plural noun in this context>"#;
     fn render_word_choice_error_with_colored_sentences() {
         let renderer = Render::new();
         let output = CompilerOutput::new(
+            "<input>",
+            1,
             "I hate apple very much",
             vec![OutputItem {
                 status: SentenceStatus::WordChoiceError,
@@ -555,6 +588,8 @@ Explain<Use plural noun in this context>"#;
     fn render_grammar_error_with_red_green_cyan() {
         let renderer = Render::new();
         let output = CompilerOutput::new(
+            "<input>",
+            1,
             "He like apples",
             vec![OutputItem {
                 status: SentenceStatus::GrammarError,
@@ -577,9 +612,33 @@ Explain<Use plural noun in this context>"#;
     }
 
     #[test]
+    fn render_file_source_and_line_number() {
+        let renderer = Render::new();
+        let output = CompilerOutput::new(
+            "essay.txt",
+            3,
+            "He like apples",
+            vec![OutputItem {
+                status: SentenceStatus::GrammarError,
+                fix: Some("He likes apples".to_string()),
+                explain: Some("Subject-verb agreement".to_string()),
+            }],
+        );
+
+        let rendered = renderer
+            .render_compiler_output(&output)
+            .expect("must render");
+
+        assert!(rendered.contains(" --> essay.txt:3:1"));
+        assert!(rendered.contains("3 | "));
+    }
+
+    #[test]
     fn render_all_right_summary_for_compiler_output() {
         let renderer = Render::new();
         let output = CompilerOutput::new(
+            "<input>",
+            1,
             "I am happy",
             vec![OutputItem {
                 status: SentenceStatus::AllRight,

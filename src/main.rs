@@ -1,6 +1,6 @@
 mod cli;
 
-use crate::cli::{Cli, Input};
+use crate::cli::Cli;
 use typo_compiler::provider;
 use typo_compiler::render::{CompilerOutput, OutputRegex, Render};
 use typo_compiler::service::Service;
@@ -27,21 +27,23 @@ async fn main() {
     };
     let renderer = Render::new();
 
-    let inputs = match cli.resolve_input() {
-        Ok(Input::Raw(content)) => vec![content],
-        Ok(Input::Divided(parts)) => parts,
+    let source = cli.source_name().to_string();
+    let entries = match cli.resolve_input() {
+        Ok(input) => input.into_entries(),
         Err(error) => {
             eprintln!("failed to read input: {error}");
             std::process::exit(1);
         }
     };
 
-    for (index, sentence) in inputs.iter().enumerate() {
-        if sentence.trim().is_empty() {
+    let mut total_errors = 0usize;
+
+    for (index, entry) in entries.iter().enumerate() {
+        if entry.sentence.trim().is_empty() {
             continue;
         }
 
-        let response = match service.post(sentence).await {
+        let response = match service.post(&entry.sentence).await {
             Ok(response) => response,
             Err(error) => {
                 eprintln!("failed to process sentence {}: {error}", index + 1);
@@ -50,17 +52,20 @@ async fn main() {
         };
 
         let mistakes = parser.parse_items(&response);
-        let compiler_output = CompilerOutput::new(sentence.clone(), mistakes);
+        let compiler_output =
+            CompilerOutput::new(&source, entry.line, entry.sentence.clone(), mistakes);
 
-        if let Some(rendered) = renderer.render_compiler_output(&compiler_output) {
-            println!("{rendered}");
-        } else {
-            // Fallback when AI output format is unexpected.
-            println!("{response}");
-        }
+        let blocks = renderer.render_error_blocks(&compiler_output);
+        total_errors += blocks.len();
 
-        if index + 1 < inputs.len() {
-            println!();
+        for block in &blocks {
+            println!("{block}\n");
         }
+    }
+
+    if total_errors == 0 {
+        println!("{}", renderer.render_success_summary());
+    } else {
+        println!("{}", renderer.render_error_summary(total_errors));
     }
 }

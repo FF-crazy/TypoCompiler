@@ -22,14 +22,32 @@ pub struct Cli {
     pub input: Option<String>,
 }
 
+pub struct InputEntry {
+    pub sentence: String,
+    pub line: usize,
+}
+
 pub enum Input {
-    Raw(String),
-    Divided(Vec<String>),
+    Raw(InputEntry),
+    Divided(Vec<InputEntry>),
+}
+
+impl Input {
+    pub fn into_entries(self) -> Vec<InputEntry> {
+        match self {
+            Input::Raw(entry) => vec![entry],
+            Input::Divided(entries) => entries,
+        }
+    }
 }
 
 impl Cli {
     pub fn parse_args() -> Self {
         Self::parse()
+    }
+
+    pub fn source_name(&self) -> &str {
+        self.file.as_deref().unwrap_or("<input>")
     }
 
     pub fn resolve_input(&self) -> io::Result<Input> {
@@ -42,10 +60,13 @@ impl Cli {
         };
 
         if self.divide {
-            let parts = split_sentences(&content);
-            Ok(Input::Divided(parts))
+            let entries = split_sentences_with_lines(&content);
+            Ok(Input::Divided(entries))
         } else {
-            Ok(Input::Raw(content))
+            Ok(Input::Raw(InputEntry {
+                sentence: content,
+                line: 1,
+            }))
         }
     }
 }
@@ -61,6 +82,13 @@ static NUM_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d)\.(\d)").unwr
 static SPLIT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[.!?]+\s*").unwrap());
 
 fn split_sentences(text: &str) -> Vec<String> {
+    split_sentences_with_lines(text)
+        .into_iter()
+        .map(|e| e.sentence)
+        .collect()
+}
+
+fn split_sentences_with_lines(text: &str) -> Vec<InputEntry> {
     const PLACEHOLDER: char = '\u{FFFC}';
 
     let protected = ABBREV_RE.replace_all(text, |caps: &regex::Captures| {
@@ -71,23 +99,31 @@ fn split_sentences(text: &str) -> Vec<String> {
         format!("{}{}{}", &caps[1], PLACEHOLDER, &caps[2])
     });
 
-    let mut sentences = Vec::new();
+    let mut entries = Vec::new();
     let mut last_end = 0;
 
     for mat in SPLIT_RE.find_iter(&protected) {
         let chunk = protected[last_end..mat.end()].trim();
         if !chunk.is_empty() {
-            sentences.push(chunk.replace(PLACEHOLDER, "."));
+            let line = protected[..last_end].matches('\n').count() + 1;
+            entries.push(InputEntry {
+                sentence: chunk.replace(PLACEHOLDER, "."),
+                line,
+            });
         }
         last_end = mat.end();
     }
 
     let remainder = protected[last_end..].trim();
     if !remainder.is_empty() {
-        sentences.push(remainder.replace(PLACEHOLDER, "."));
+        let line = protected[..last_end].matches('\n').count() + 1;
+        entries.push(InputEntry {
+            sentence: remainder.replace(PLACEHOLDER, "."),
+            line,
+        });
     }
 
-    sentences
+    entries
 }
 
 #[cfg(test)]
